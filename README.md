@@ -188,3 +188,4 @@ MIN_CONSENSUS_SCORE=0.72   # raise to 0.85 for max accuracy, lower to 0.65 for s
 AMAV (Adversarial Multi-Agent Validation) architecture — originally built for academic research validation, adapted here for business intelligence.
 
 GitHub: [vinaykumarchowdary18/veridian](https://github.com/vinaykumarchowdary18/veridian)
+"# veridian" 
