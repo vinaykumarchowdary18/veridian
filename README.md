@@ -1,191 +1,242 @@
-# Veridian — Adversarial Business Intelligence
+# Veridian — Adversarial Business Intelligence Agent
 
 > Ask any business question. Four AI models debate the answer before you see it.
 
+**Kaggle AI Agents Intensive Vibe Coding Capstone 2026 — Track: Agents for Business**
+
+🎥 [Demo Video](https://youtu.be/aSBQtWnbwJo) | 💻 [GitHub](https://github.com/vinaykumarchowdary18/veridian)
+
 ---
 
-## What it does
+## The Problem
 
-Most AI tools give you one answer from one model. You have no idea if it's accurate, complete, or missing critical risks.
+Business decision-makers ask AI tools questions every day — about markets, competitors, strategies, risks. The problem is that every major AI tool gives you **one answer from one model**, with no way to know if it is accurate, complete, or missing critical caveats.
 
-Veridian runs every question through an **adversarial multi-agent debate** before returning anything:
+There is no cross-validation. No audit trail. No transparency about what the model is uncertain about. You either trust it blindly or you do not use it at all.
+
+This is especially damaging for high-stakes business decisions where a wrong answer has real consequences — budget allocation, technology adoption, market entry, hiring strategy.
+
+---
+
+## The Solution
+
+Veridian solves this by running every question through an **adversarial multi-agent debate** before returning anything to the user.
+
+Instead of one model answering, four models with different architectures and training paradigms work against each other:
+
+- An **Analyst** drafts the best possible answer grounded in live web evidence
+- Two independent **Auditors** challenge it in parallel — one focused on data integrity, one on strategic completeness
+- An **Arbiter** reconciles both verdicts, scores consensus, and either finalizes the answer, requests a revision, or escalates for a complete redraft
+
+The user only sees the output after this debate has completed. Every dissenting point is logged in a transparent audit trail so the user knows exactly what the system disagreed on.
+
+---
+
+## Architecture
 
 ```
 Your Question
       │
       ▼
-[Tavily]  ←── Live web evidence fetched first
+[Tavily Web Search]
+  Live evidence fetched before any model sees the question
       │
       ▼
 [Analyst — Gemini 2.5 Flash]
-  Drafts a structured intelligence brief
+  Drafts structured intelligence brief:
+  Executive Summary / Key Findings / Risks / Recommended Actions
       │
-      ├──────────────────────────────┐
-      ▼                              ▼
-[Auditor A — Llama 3.3-70b     [Auditor B — DeepSeek v3
-   via Groq]                      via OpenRouter]
- Data & Logic Audit               Strategy & Completeness Audit
- (independent, parallel)          (independent, parallel)
-      │                              │
-      └──────────────┬───────────────┘
+      ├─────────────────────────────────┐
+      ▼                                 ▼
+[Auditor A — Llama 3.3-70b]    [Auditor B — Llama 3.1-8b-instant]
+  via Groq                        via Groq
+  Focus: Data integrity           Focus: Strategy & completeness
+  & logical consistency           & actionability
+  (runs independently)            (runs independently, in parallel)
+      │                                 │
+      └──────────────┬──────────────────┘
                      ▼
-          [Arbiter — GPT-4o-mini
-            via GitHub Models]
-         Reconciles verdicts, scores consensus
-         Decides: finalize | revise | escalate
+          [Arbiter — GPT-4o-mini]
+            via GitHub Models
+            Scores consensus = avg(auditor scores)
+            Directive: finalize | revise | escalate
                      │
-           (loops up to MAX_DEBATE_ROUNDS)
-                     │
-                     ▼
-         ✅ Validated Intelligence Brief
-            + Confidence score
-            + Audit trail
-            + Dissenting points logged
+         ┌───────────┴────────────┐
+         │                        │
+    finalize                   revise/escalate
+         │                        │
+         ▼                   loop back (max 2 rounds)
+  ✅ Intelligence Brief
+     + Confidence score
+     + Audit trail
+     + Sources
 ```
 
-Each model is a **different family** (Google / Meta / DeepSeek / OpenAI) running on **different infrastructure** — no shared biases, no echo chamber.
+### Why four different models?
 
----
+Each model comes from a different provider and training paradigm:
 
-## Output structure
+| Role | Model | Provider | Focus |
+|---|---|---|---|
+| Analyst | Gemini 2.5 Flash | Google | Draft generation |
+| Auditor A | Llama 3.3-70b-versatile | Meta via Groq | Data & logic audit |
+| Auditor B | Llama 3.1-8b-instant | Meta via Groq | Strategy & completeness audit |
+| Arbiter | GPT-4o-mini | OpenAI via GitHub Models | Consensus scoring |
+| Evidence | Tavily Search | Tavily | Live web retrieval |
 
-Every question produces a structured brief with:
+No two agents share infrastructure. This prevents correlated failures and echo chamber effects.
 
-| Section | Content |
+### Agent concepts demonstrated
+
+| Kaggle Concept | Implementation |
 |---|---|
-| **Executive Summary** | 2-3 sentence direct answer |
-| **Key Findings** | 5+ validated findings with evidence citations |
-| **Market / Context Analysis** | Substantive analysis grounded in live data |
-| **Risks & Caveats** | What the brief does NOT guarantee |
-| **Recommended Actions** | Concrete next steps for a decision-maker |
-| **Confidence Score** | How much the auditors agreed |
-| **Audit Trail** | Every unresolved dissent, logged transparently |
-| **Sources** | Live web sources from Tavily |
+| Multi-agent system | 4-agent adversarial pipeline with orchestrated debate loop |
+| Agent skills | Evidence retrieval tool, structured output parsing, iterative refinement |
+| MCP Server | `mcp_server.py` — exposes Veridian as MCP tool for Claude Desktop |
+| Security features | Rate limiting, prompt injection detection, input sanitisation (`core/security.py`) |
+| Deployability | FastAPI server + static frontend, runs locally or any cloud host |
 
 ---
 
-## Example questions
+## Setup Instructions
 
-```
-What are the fastest growing B2B SaaS markets in 2025?
-Compare cloud cost optimization strategies for mid-size companies
-What skills are most in demand for data engineering roles right now?
-Is generative AI adoption slowing down in enterprise?
-What are the biggest risks of adopting microservices for a growing startup?
-Which industries are seeing the highest ROI from AI automation?
-What does the job market look like for software engineers in 2025?
-What are the biggest challenges in MLOps adoption at scale?
-```
+### Prerequisites
 
----
+- Python 3.11+
+- 5 free API keys (all have free tiers, no credit card required)
 
-## Confidence levels
-
-| Consensus Score | Meaning |
-|---|---|
-| ≥ 0.75 | 🟢 High — auditors broadly agreed, safe to act on |
-| 0.50–0.74 | 🟡 Medium — some disagreement, verify key claims |
-| < 0.50 | 🔴 Low — significant unresolved critique, check sources manually |
-
----
-
-## Setup
-
-### 1. Clone the repo
+### Step 1 — Clone the repo
 
 ```bash
 git clone https://github.com/vinaykumarchowdary18/veridian
 cd veridian
 ```
 
-### 2. Install dependencies
+### Step 2 — Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Configure API keys
+### Step 3 — Get your API keys
+
+| Key | Where to get it | Free? |
+|---|---|---|
+| `GEMINI_API_KEY` | [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) | ✅ Yes |
+| `GROQ_API_KEY` | [console.groq.com/keys](https://console.groq.com/keys) | ✅ Yes |
+| `OPENROUTER_API_KEY` | [openrouter.ai/keys](https://openrouter.ai/keys) | ✅ Yes |
+| `GITHUB_TOKEN` | GitHub → Settings → Developer settings → Fine-grained tokens → scope: **Models: read** | ✅ Yes |
+| `TAVILY_API_KEY` | [app.tavily.com](https://app.tavily.com) | ✅ Yes (1000/month) |
+
+### Step 4 — Configure environment
 
 ```bash
 cp .env.example .env
-# Open .env and fill in your 5 keys
+# Open .env and paste your 5 keys
 ```
 
-| Key | Provider | Free tier? |
-|---|---|---|
-| `GEMINI_API_KEY` | Google AI Studio | ✅ Yes |
-| `GROQ_API_KEY` | Groq Cloud | ✅ Yes |
-| `OPENROUTER_API_KEY` | OpenRouter | ✅ Yes (DeepSeek free) |
-| `GITHUB_TOKEN` | GitHub (Models: read scope) | ✅ Yes |
-| `TAVILY_API_KEY` | Tavily Search | ✅ Yes (1000/month) |
-
-> **GitHub token:** Go to GitHub → Settings → Developer settings → Fine-grained personal access tokens → Create token with **Models: read** permission.
-
-### 4. Run the Gradio UI
+### Step 5 — Run
 
 ```bash
-python app.py
+uvicorn server:app --reload --port 8000
 ```
 
-Opens at `http://localhost:7860`
+Open `http://localhost:8000` in your browser.
 
 ---
 
-## File structure
+## File Structure
 
 ```
 veridian/
-├── app.py                    ← Gradio UI (run this)
+├── server.py                 ← FastAPI server — main entry point
+├── app.py                    ← Gradio fallback UI
+├── mcp_server.py             ← MCP server for Claude Desktop
+├── mcp_config.json           ← Claude Desktop MCP configuration
 │
 ├── core/
-│   ├── config.py             ← Loads & validates all .env keys
-│   ├── models.py             ← Pydantic data models
-│   ├── logger.py             ← Rich logging
-│   └── orchestrator.py       ← Debate loop engine
+│   ├── config.py             ← Environment variable loading & validation
+│   ├── models.py             ← Pydantic data models (IntelBrief, etc.)
+│   ├── logger.py             ← Rich-powered structured logging
+│   ├── orchestrator.py       ← Debate loop engine
+│   └── security.py           ← Rate limiting, injection detection, sanitisation
 │
 ├── agents/
-│   ├── _openai_compat.py     ← Shared async HTTP caller
-│   ├── proposer.py           ← Gemini 2.5 Flash (Analyst)
-│   ├── critic_a.py           ← Llama 3.3-70b via Groq (Data Auditor)
-│   ├── critic_b.py           ← DeepSeek v3 via OpenRouter (Strategy Auditor)
-│   └── arbiter.py            ← GPT-4o-mini via GitHub Models (Arbiter)
+│   ├── _openai_compat.py     ← Shared async HTTP caller for OpenAI-compatible APIs
+│   ├── proposer.py           ← Gemini 2.5 Flash — Analyst agent
+│   ├── critic_a.py           ← Llama 3.3-70b — Data Auditor agent
+│   ├── critic_b.py           ← Llama 3.1-8b-instant — Strategy Auditor agent
+│   └── arbiter.py            ← GPT-4o-mini — Arbiter agent
 │
 ├── tools/
-│   └── evidence.py           ← Tavily web search wrapper
+│   └── evidence.py           ← Tavily web search tool
 │
-├── outputs/                  ← Auto-created: JSON + Markdown reports per query
+├── static/
+│   └── index.html            ← Custom dark UI frontend
 │
-├── .env.example              ← Key template
-├── requirements.txt
-└── README.md
+├── outputs/                  ← Auto-created: JSON + Markdown per query
+├── .env.example              ← API key template
+└── requirements.txt
 ```
 
 ---
 
-## Tuning
+## Security Features
 
-In your `.env`:
+`core/security.py` implements a 5-layer security pipeline on every request:
 
-```env
-MAX_DEBATE_ROUNDS=2        # raise to 3 for higher-stakes questions (slower)
-MIN_CONSENSUS_SCORE=0.72   # raise to 0.85 for max accuracy, lower to 0.65 for speed
+1. **Rate limiting** — sliding window, 10 requests per 60 seconds per IP
+2. **Input sanitisation** — strips null bytes and control characters
+3. **Prompt injection detection** — 15 regex patterns blocking instruction overrides, role hijacking, and data exfiltration attempts
+4. **Content filtering** — blocks harmful or off-topic requests
+5. **API key validation** — checks all 5 keys at startup for presence and placeholder values
+
+---
+
+## MCP Server
+
+Veridian exposes itself as an MCP-compatible tool server via `mcp_server.py`:
+
+**Tools available:**
+- `run_intelligence_brief(question)` — runs the full 4-agent debate and returns a structured brief
+- `get_confidence_explanation(confidence, consensus_score, debate_rounds)` — interprets what the scores mean
+
+**Connect to Claude Desktop:**
+
+```json
+{
+  "mcpServers": {
+    "veridian": {
+      "command": "python",
+      "args": ["mcp_server.py"],
+      "cwd": "/path/to/veridian"
+    }
+  }
+}
 ```
 
 ---
 
-## Architecture notes
+## Output Format
 
-- **No shared state between auditors** — Auditor B has not seen Auditor A's output. Enforced by independent parallel async calls.
-- **Model diversity by design** — Gemini (Google), Llama (Meta), DeepSeek (Chinese open-weight), GPT (OpenAI). Four different training paradigms, four different failure modes.
-- **Evidence-first** — Tavily fetches live web context before any model sees the question, grounding all four agents in current facts.
-- **Transparent uncertainty** — Dissenting minority critique points are always logged, even when overruled.
-- **Saves everything** — Every query saved to `./outputs/` as JSON (machine-readable) and Markdown (human-readable).
+Every query produces:
+
+- **UI output** — structured brief with tabbed sections (Executive Summary, Key Findings, Risks, Actions, Sources, Audit Trail)
+- **`outputs/<timestamp>.md`** — human-readable Markdown report
+- **`outputs/<timestamp>.json`** — full machine-readable record including all agent verdicts
+
+### Confidence levels
+
+| Score | Meaning |
+|---|---|
+| ≥ 0.75 | 🟢 High — auditors broadly agreed, safe to act on |
+| 0.50–0.74 | 🟡 Medium — some disagreement, verify key claims |
+| < 0.50 | 🔴 Low — significant dissent, check sources manually |
 
 ---
 
-## Built on
+## Built on AMAV
 
-AMAV (Adversarial Multi-Agent Validation) architecture — originally built for academic research validation, adapted here for business intelligence.
+Veridian is built on the AMAV (Adversarial Multi-Agent Validation) architecture, originally developed for academic research validation and graduate school application assistance. Veridian adapts this architecture for business intelligence use cases.
 
-GitHub: [vinaykumarchowdary18/veridian](https://github.com/vinaykumarchowdary18/veridian)
-"# veridian" 
+Original AMAV repo: [github.com/vinaykumarchowdary18/-Adversarial-Multi-Agent-Validation](https://github.com/vinaykumarchowdary18/-Adversarial-Multi-Agent-Validation)
